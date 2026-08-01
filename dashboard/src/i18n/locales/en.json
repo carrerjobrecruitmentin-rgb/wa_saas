@@ -63,8 +63,11 @@
     "messageTester": "Message Tester",
     "infrastructure": "Infrastructure",
     "plugins": "Plugins",
-    "logs": "Logs"
+    "logs": "Logs",
+    "contacts": "Contacts",
+    "campaigns": "Campaigns"
   },
+
   "chats": {
     "media": {
       "location": "Location",

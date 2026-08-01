@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { InternalServerErrorException } from '@nestjs/common';
+import { InternalServerErrorException, BadRequestException } from '@nestjs/common';
 import {
   Client,
   LocalAuth,
@@ -65,6 +65,11 @@ import { ChannelNotFoundError } from '../../common/errors/channel-not-found.erro
 import { ChannelMediaNotSupportedError } from '../../common/errors/channel-media-not-supported.error';
 import { EngineTransportError } from '../../common/errors/engine-transport.error';
 import { loadRemoteMediaBuffer } from '../../common/media/load-remote-media';
+import {
+  randomStealthProfile,
+  getStealthLaunchArgs,
+  getStealthPageScript,
+} from '../../common/stealth/stealth-mode.engine';
 import {
   GroupChat,
   GroupMetadataRaw,
@@ -540,10 +545,14 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
     }
 
     try {
-      // Build puppeteer args, including proxy if configured
+      // ══ Stealth Mode: Build anti-detection Puppeteer launch args ══════════════════════
+      // When no custom args are provided, merge our stealth flags with the defaults.
+      // This removes the navigator.webdriver flag and other bot fingerprints.
+      const stealthArgs = getStealthLaunchArgs();
       const puppeteerArgs = this.config.puppeteer?.args
         ? [...this.config.puppeteer.args]
         : [
+            ...stealthArgs, // 🕵️ Stealth flags (includes --disable-blink-features=AutomationControlled)
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
@@ -641,6 +650,24 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
       // the browser is alive, so it cannot pull the files out from under a running Chromium.
       await this.removeStaleSingletonFiles();
       await this.client.initialize();
+
+      // ══ Stealth Mode: Inject anti-fingerprinting patches into the browser page ══════════
+      // This must run AFTER initialize() so the Puppeteer page is available.
+      // getStealthPageScript() patches: navigator.webdriver, platform, plugins, canvas, etc.
+      try {
+        const page = (this.client as unknown as { pupPage?: { evaluateOnNewDocument: (s: string) => Promise<void>; setUserAgent: (ua: string) => Promise<void> } }).pupPage;
+        if (page) {
+          const stealthProfile = randomStealthProfile();
+          await page.evaluateOnNewDocument(getStealthPageScript(stealthProfile));
+          await page.setUserAgent(stealthProfile.userAgent);
+          this.logger.log(`🕵️ Stealth patches applied: ${stealthProfile.platform} UA`);
+        }
+      } catch (stealthErr) {
+        // Non-fatal: if stealth injection fails, we still function — just less stealthy
+        this.logger.warn(`Stealth page injection skipped (non-fatal): ${String(stealthErr)}`);
+      }
+      // ════════════════════════════════════════════════════════════════════════════════════
+
       // whatsapp-web.js 1.34.x never observes the Chromium process/page it drives, so a crashed
       // browser leaves the client looking READY forever ("silent death"). Attach death listeners
       // to the puppeteer handles so a dead browser surfaces as a normal disconnect → reconnect.
@@ -1720,7 +1747,10 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
     const to = await this.resolveSendId(chatId);
     try {
       return await send(to);
-    } catch (err) {
+    } catch (err: any) {
+      if (err instanceof TypeError && err.message?.includes("reading 'getChat'")) {
+        throw new BadRequestException('Number is not registered on WhatsApp');
+      }
       // A transport-level failure means the page/browser is gone — report it as a death signal.
       // No-op for ordinary send errors; the retry/throw behavior below is unchanged.
       this.reportIfPageTransportError(err, 'sendMessage');

@@ -40,6 +40,8 @@ import { PluginsApiModule } from './modules/plugins/plugins.module';
 import { AgentToolsModule } from './core/agent-tools/agent-tools.module';
 import { IntegrationModule } from './modules/integration/integration.module';
 import { SearchModule } from './modules/search/search.module';
+import { CampaignContactsModule } from './modules/campaign-contacts/campaign-contacts.module';
+// CampaignsModule is loaded conditionally (requires QUEUE_ENABLED=true) — imported via require()
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
 const queueModules: Array<Type | DynamicModule> = [];
@@ -49,6 +51,10 @@ if (process.env.QUEUE_ENABLED === 'true') {
     QueueModule: Type;
   };
   queueModules.push(queueModule.QueueModule);
+  // CampaignsModule requires BullMQ (registered by QueueModule above) — load together
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { CampaignsModule: CM } = require('./modules/campaigns/campaigns.module') as { CampaignsModule: Type };
+  queueModules.push(CM);
 }
 
 // Global message search. Opt-out via SEARCH_ENABLED=false: the module (route + provider + registry)
@@ -149,6 +155,8 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
             __dirname + '/engine/**/*.entity{.ts,.js}',
             __dirname + '/modules/integration/**/*.entity{.ts,.js}',
             __dirname + '/modules/status-store/**/*.entity{.ts,.js}',
+            __dirname + '/modules/campaign-contacts/**/*.entity{.ts,.js}',
+            __dirname + '/modules/campaigns/**/*.entity{.ts,.js}',
           ],
           migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
           logging: configService.get<boolean>('dataDatabase.logging', false),
@@ -284,6 +292,8 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     PluginsApiModule, // Phase 5: Plugins API
     AgentToolsModule, // Agent-invocable tool registry (protocol-neutral)
     IntegrationModule, // Integration Fabric: @Public provider-webhook ingress + fast-ack pipeline
+    CampaignContactsModule, // Bulk campaign: CSV contact management (no Redis dep)
+    // CampaignsModule loaded conditionally with QueueModule above (needs BullMQ root)
     ...searchModules, // Global message search (opt-out via SEARCH_ENABLED=false; default ON)
     ...mcpModules, // MCP Streamable-HTTP server (opt-in via MCP_ENABLED=true)
     ...serveStaticModules, // Bundled dashboard SPA (production single-port setup)
