@@ -536,7 +536,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const url = `${API_BASE_URL}${endpoint}`;
 
   // Get API key from sessionStorage for authentication
-  const apiKey = sessionStorage.getItem('openwa_api_key');
+  const rawApiKey = sessionStorage.getItem('openwa_api_key') || '';
+  const apiKey = rawApiKey.trim();
 
   // For FormData (file uploads) let the browser set multipart/form-data + boundary itself.
   const isFormData = options.body instanceof FormData;
@@ -581,7 +582,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 /** Like {@link request} but returns the raw response text — e.g. a plugin's HTML config-UI bundle. */
 async function requestText(endpoint: string): Promise<string> {
-  const apiKey = sessionStorage.getItem('openwa_api_key');
+  const rawApiKey = sessionStorage.getItem('openwa_api_key') || '';
+  const apiKey = rawApiKey.trim();
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     headers: { ...(apiKey ? { 'X-API-Key': apiKey } : {}) },
   });
@@ -607,7 +609,8 @@ async function requestBlob(endpoint: string): Promise<Blob> {
   const url = `${API_BASE_URL}${endpoint}`;
 
   // Get API key from sessionStorage for authentication
-  const apiKey = sessionStorage.getItem('openwa_api_key');
+  const rawApiKey = sessionStorage.getItem('openwa_api_key') || '';
+  const apiKey = rawApiKey.trim();
 
   const headers: HeadersInit = {
     ...(apiKey ? { 'X-API-Key': apiKey } : {}),

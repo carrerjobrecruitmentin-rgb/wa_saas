@@ -37,12 +37,12 @@ export function Login({ onLogin }: LoginProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': apiKey,
+          'X-API-Key': apiKey.trim(),
         },
       });
 
       if (response.ok) {
-        onLogin(apiKey);
+        onLogin(apiKey.trim());
       } else {
         const errorData = await response.json().catch(() => ({}));
         setError(errorData.message || t('login.invalidKey'));

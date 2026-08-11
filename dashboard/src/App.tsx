@@ -37,9 +37,10 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   // Initialize from sessionStorage to avoid setState in effect
-  const savedKey = sessionStorage.getItem('openwa_api_key');
+  const rawKey = sessionStorage.getItem('openwa_api_key') || '';
+  const savedKey = rawKey.trim();
   const [isAuthenticated, setIsAuthenticated] = useState(!!savedKey);
-  const [, setApiKey] = useState(savedKey || '');
+  const [, setApiKey] = useState(savedKey);
   const { setRole, role } = useRole();
 
   const handleLogin = async (key: string) => {

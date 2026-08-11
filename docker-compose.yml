@@ -199,7 +199,7 @@ services:
       # Docker socket proxy (openwa-api never touches /var/run/docker.sock directly)
       - DOCKER_HOST=tcp://docker-proxy:2375
     volumes:
-      - openwa-data:/app/data
+      - ./data:/app/data
       - ./docker-compose.yml:/app/docker-compose.yml:ro
     depends_on:
       docker-proxy:
